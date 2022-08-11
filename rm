@@ -1,0 +1,132 @@
+#!/bin/bash
+set -Eeu -o pipefail
+
+default_trash_path=~/.Trash
+trash_path=${REMAIN_TRASH_PATH:=${default_trash_path:?}}
+
+RemainConfirmYesOrNo() {
+  printf '%s' "${1:?}"
+  read -r __remain_yes_or_no </dev/tty
+  [[ "${__remain_yes_or_no-No}" =~ (Y|y) ]]
+}
+
+RemainUsage () {
+cat <<USAGE
+Usage: rm [OPTION]... [FILE]...
+
+rm (meaning: remain) behaves like GNU coreutils rm but remain files or directories in ~/.Trash.
+
+  -f, --force           ignore nonexistent files and arguments, never prompt
+  -i                    prompt before every removal
+  -I                    prompt once before removing
+      --interactive[=WHEN]  prompt according to WHEN: never, once (-I), or
+                          always (-i); without WHEN, prompt always
+      --no-preserve-root  do not treat '/' specially
+  -r, -R, --recursive   remove directories and their contents recursively
+  -v, --verbose         explain what is being done
+  -h, --help     display this help and exit
+      --version  output version information and exit
+USAGE
+  return 0
+}
+
+RemainVersion () {
+  echo "rm (meaning: remain) 0.1.0"
+}
+
+RemainInit () {
+  if [[ ! -d "${trash_path:?}" ]]; then
+    mkdir -p "${trash_path:?}"
+  fi
+}
+
+RemainOptions () {
+  __remain_opts=0
+  __remain_opt_force=false
+  __remain_opt_interactive=none
+  __remain_opt_no_preserve_root=false
+  __remain_opt_recursive=false
+  __remain_opt_verbose=false
+
+  for arg in "$@"; do
+    if [[ "${arg-}" =~ (-.*f.*|--force) ]]; then __remain_opt_force=true; fi
+    if [[ "${arg-}" =~ -.*I.* ]]; then __remain_opt_interactive=once; fi
+    if [[ "${arg-}" =~ -.*i.* ]]; then __remain_opt_interactive=always; fi
+    if [[ "${arg-}" =~ --interactive=.+ ]]; then if ! [[ ${__remain_opt_interactive:?} =~ (always|once) ]]; then __remain_opt_interactive=${arg//--interactive=/}; fi; fi
+    if [[ "${arg-}" = --no-preserve-root ]]; then __remain_opt_no_preserve_root=true; fi
+    if [[ "${arg-}" =~ (-.*r.*|-.*R.*|--recursive) ]]; then __remain_opt_recursive=true; fi
+    if [[ "${arg-}" =~ (-.*v.*|--verbose) ]]; then __remain_opt_verbose=true; fi
+    case "${arg-}" in
+      -h|--help)
+        RemainUsage
+        exit $?
+        ;;
+      --version)
+        RemainVersion
+        exit $?
+        ;;
+      --)
+        __remain_opts=$((__remain_opts+1))
+        break
+        ;;
+      -*)
+        __remain_opts=$((__remain_opts+1))
+        ;;
+    esac
+  done
+}
+
+RemainFiles () {
+  if [[ "${__remain_opt_force:?}" != true ]] && [[ "${__remain_opt_interactive:?}" = once ]]; then
+    # shellcheck disable=SC2001
+    RemainConfirmYesOrNo "rm: remove $# arguments? " || return 0
+    __remain_opt_interactive=none
+  fi
+
+  err=0
+  for arg in "$@"; do
+    if [[ "${arg-}" = / ]] && [[ "${__remain_opt_no_preserve_root:?}" != true ]]; then printf "%s\n%s\n" "rm: it is dangerous to operate recursively on '/'" "rm: use --no-preserve-root to override this failsafe"; err=1; continue; fi
+    if [[ -d "${arg:?}" ]] && [[ "${__remain_opt_recursive:?}" != true ]]; then echo "rm: cannot remove '${arg:?}': Is a directory"; err=1; continue; fi
+    if [[ "${__remain_opt_force:?}" != true ]] && [[ "${__remain_opt_interactive:?}" = always ]]; then RemainConfirmYesOrNo "remove ${arg-}? " || continue; fi
+    trash_destination="${trash_path:?}/$(echo "${arg:?}" | sed 's/^\///; s/\/$//')"
+    trash_destination_dir=$(dirname "${trash_destination:?}")
+    if [[ ! -d "${trash_destination_dir:?}" ]]; then mkdir -p "${trash_destination_dir:?}"; fi
+    if [[ -e "${trash_destination:?}" ]]; then trash_destination="${trash_destination:?}.$(date +%Y%m%dT%H%M%S%Z)"; fi
+    if [[ "${__remain_opt_verbose:?}" = true ]]; then __mv_opt=" -v"; fi
+    # shellcheck disable=SC2086
+    mv ${__mv_opt-} "${arg-}" "${trash_destination:?}" || err=$?
+  done
+
+  return ${err-0}
+}
+
+RemainDebugOptions () {
+  cat <<DEBUG
+[DEBUG] __remain_opts=${__remain_opts-}
+[DEBUG] __remain_opt_interactive=${__remain_opt_interactive-}
+[DEBUG] __remain_opt_no_preserve_root=${__remain_opt_no_preserve_root-}
+[DEBUG] __remain_opt_recursive=${__remain_opt_recursive-}
+[DEBUG] __remain_opt_verbose=${__remain_opt_verbose-}
+DEBUG
+}
+
+RemainMain () {
+  # If $@ is empty, output usage and exit.
+  if [[ $# -lt 1 ]]; then RemainUsage; return 0; fi
+
+  RemainInit || return $?
+
+  RemainOptions "$@" || return $?
+  shift "${__remain_opts:?}"
+
+  # When $@ is empty after shift, output usage and exit.
+  if [[ $# -lt 1 ]]; then RemainUsage; return 0; fi
+
+  RemainFiles "$@" || return $?
+}
+
+#RemainDebugOptions
+
+RemainMain "$@"
+
+#RemainDebugOptions
