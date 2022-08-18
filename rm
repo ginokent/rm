@@ -50,9 +50,9 @@ RemainOptions () {
 
   for arg in "$@"; do
     if [[ "${arg-}" =~ (-.*f.*|--force) ]]; then __remain_opt_force=true; fi
-    if [[ "${arg-}" =~ -.*I.* ]]; then __remain_opt_interactive=once; fi
-    if [[ "${arg-}" =~ -.*i.* ]]; then __remain_opt_interactive=always; fi
-    if [[ "${arg-}" =~ --interactive=.+ ]]; then if ! [[ ${__remain_opt_interactive:?} =~ (always|once) ]]; then __remain_opt_interactive=${arg//--interactive=/}; fi; fi
+    if [[ "${arg-}" =~ -.*I.* ]] && [[ -t 0 ]]; then __remain_opt_interactive=once; fi
+    if [[ "${arg-}" =~ -.*i.* ]] && [[ -t 0 ]]; then __remain_opt_interactive=always; fi
+    if [[ "${arg-}" =~ --interactive=.+ ]] && [[ -t 0 ]]; then if ! [[ ${__remain_opt_interactive:?} =~ (always|once) ]]; then __remain_opt_interactive=${arg//--interactive=/}; fi; fi
     if [[ "${arg-}" = --no-preserve-root ]]; then __remain_opt_no_preserve_root=true; fi
     if [[ "${arg-}" =~ (-.*r.*|-.*R.*|--recursive) ]]; then __remain_opt_recursive=true; fi
     if [[ "${arg-}" =~ (-.*v.*|--verbose) ]]; then __remain_opt_verbose=true; fi
