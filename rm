@@ -85,6 +85,7 @@ RemainFiles () {
 
   err=0
   for arg in "$@"; do
+    if [[ ! -e "${arg:?}" ]]; then if [[ "${__remain_opt_force:?}" != true ]]; then echo "rm: ${arg:?}: No such file or directory"; err=1; continue; else continue; fi; fi
     if [[ "${arg-}" = / ]] && [[ "${__remain_opt_no_preserve_root:?}" != true ]]; then printf "%s\n%s\n" "rm: it is dangerous to operate recursively on '/'" "rm: use --no-preserve-root to override this failsafe"; err=1; continue; fi
     if [[ -d "${arg:?}" ]] && [[ "${__remain_opt_recursive:?}" != true ]]; then echo "rm: cannot remove '${arg:?}': Is a directory"; err=1; continue; fi
     if [[ "${__remain_opt_force:?}" != true ]] && [[ "${__remain_opt_interactive:?}" = always ]]; then RemainConfirmYesOrNo "remove ${arg-}? " || continue; fi
